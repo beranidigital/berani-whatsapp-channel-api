@@ -6,8 +6,10 @@
     "start": "node dist/server.js",
     "dev": "nodemon",
     "build": "tsc",
-    "watch": "tsc -w"
+    "watch": "tsc -w",
+    "dev-deno": "deno run --allow-net --allow-read --allow-write --unstable src/server.ts"
   },
+  "type": "module",
   "keywords": [],
   "author": "",
   "license": "ISC",
