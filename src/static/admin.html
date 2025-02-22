@@ -88,6 +88,14 @@
         <!-- Admin Panel -->
         <div v-else class="container">
             <h1>WhatsApp Admin Panel</h1>
+            <div style="margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 4px;">
+                <h3>Register New Tenant</h3>
+                <div class="register-form" style="display: flex; gap: 10px; align-items: center;">
+                    <input type="text" v-model="newTenantId" placeholder="Enter Tenant ID" style="max-width: 200px; margin: 0;">
+                    <button @click="registerTenant">Register Tenant</button>
+                </div>
+                <div v-if="registerError" class="error">{{ registerError }}</div>
+            </div>
             <button @click="refreshClients">Refresh Clients</button>
             <button @click="logout" style="float: right">Logout</button>
 
@@ -111,7 +119,9 @@
                     loginError: '',
                     socket: null,
                     clients: [],
-                    token: localStorage.getItem('admin_token')
+                    token: localStorage.getItem('admin_token'),
+                    newTenantId: '',
+                    registerError: ''
                 }
             },
             mounted() {
@@ -213,6 +223,35 @@
                 refreshClients() {
                     if (this.socket) {
                         this.socket.emit('get_all_clients');
+                    }
+                },
+                async registerTenant() {
+                    if (!this.newTenantId) {
+                        this.registerError = 'Please enter a Tenant ID';
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`/api/tenants/${this.newTenantId}/init`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${this.token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(await response.text());
+                        }
+
+                        // Clear form and error
+                        this.newTenantId = '';
+                        this.registerError = '';
+                        
+                        // Refresh client list
+                        this.refreshClients();
+                    } catch (error) {
+                        this.registerError = error.message;
                     }
                 }
             }
