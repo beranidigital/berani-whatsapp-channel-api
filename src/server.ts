@@ -19,7 +19,19 @@ const db = new DatabaseService();
 db.init().catch(console.error);
 
 // Security middleware
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-eval'", "https://unpkg.com"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        connectSrc: ["'self'"],
+      },
+    },
+  })
+);
 app.use(cors({
     origin: process.env.ALLOWED_ORIGINS?.split(',') || '*'
 }));
