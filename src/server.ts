@@ -24,7 +24,7 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-eval'", "https://unpkg.com"],
+        scriptSrc: ["'self'", "'unsafe-eval'", "'unsafe-inline'", "https://unpkg.com"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "blob:"],
         connectSrc: ["'self'"],
@@ -134,6 +134,15 @@ const authenticateRequest = (
 // Routes
 app.post('/api/tenants/:tenantId', authenticateRequest, async (req: Request, res: Response) => {
     const { tenantId } = req.params;
+    
+    // Validate tenantId format
+    if (!/^[\w-]+$/.test(tenantId)) {
+        const response: ApiResponse = {
+            status: 'error',
+            message: 'Invalid tenant ID. Only alphanumeric characters, underscores and hyphens are allowed.'
+        };
+        return res.status(400).json(response);
+    }
     
     if (await db.hasTenant(tenantId)) {
         const response: ApiResponse = {

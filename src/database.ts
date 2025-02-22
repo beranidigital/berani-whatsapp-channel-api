@@ -22,7 +22,14 @@ export class DatabaseService {
     }
 
     private async save() {
-        const jsonData = Object.fromEntries(this.data);
+        // Create a sanitized version of the data without the client property
+        const sanitizedData = new Map(
+            Array.from(this.data.entries()).map(([id, tenant]) => {
+                const { client, ...rest } = tenant;
+                return [id, rest];
+            })
+        );
+        const jsonData = Object.fromEntries(sanitizedData);
         await fs.writeFile(this.dbPath, JSON.stringify(jsonData, null, 2));
     }
 
