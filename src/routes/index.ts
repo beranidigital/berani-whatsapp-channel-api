@@ -1,8 +1,13 @@
 import { Express } from 'express';
 import { WhatsAppManager } from '../whatsapp/manager';
 import { authMiddleware, AuthRequest, generateToken, validateAdminCredentials } from '../middleware/auth';
+import path from 'path';
+import express from 'express';
 
 export const setupRoutes = (app: Express, whatsappManager: WhatsAppManager) => {
+  // Serve static files from src/static
+  app.use('/admin', express.static(path.join(__dirname, '../static')));
+
   // Authentication
   app.post('/api/auth/login', async (req, res) => {
     const { username, password } = req.body;
