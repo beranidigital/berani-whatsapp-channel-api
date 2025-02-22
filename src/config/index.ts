@@ -2,7 +2,17 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-export const config = {
+export interface AppConfig {
+    port: number | string;
+    apiKey: string;
+    allowedOrigins: string[] | string;
+    rateLimit: {
+        windowMs: number;
+        max: number;
+    };
+}
+
+export const config: AppConfig = {
     port: process.env.PORT || 3000,
     apiKey: process.env.API_KEY || '',
     allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || '*',
