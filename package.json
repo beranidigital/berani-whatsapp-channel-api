@@ -1,31 +1,32 @@
 {
   "name": "whatsapp-server",
   "version": "1.0.0",
-  "main": "src/server.ts",
-  "scripts": {
-    "start": "bun src/server.ts",
-    "dev": "bun --watch src/server.ts",
-    "build": "bun build ./src/server.ts --outdir ./dist --target node"
-  },
+  "description": "Multi-tenant WhatsApp Web API Server",
+  "main": "src/index.ts",
   "type": "module",
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch run src/index.ts",
+    "build": "bun build ./src/index.ts --outdir ./dist",
+    "test": "bun test"
+  },
   "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2",
+    "whatsapp-web.js": "^1.23.0",
+    "qrcode": "^1.5.3",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
-    "helmet": "^8.0.0",
-    "qrcode": "^1.5.4",
-    "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.26.0"
+    "dotenv": "^16.3.1",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
     "@types/node": "^20.11.19",
     "@types/qrcode": "^1.5.5",
-    "@types/qrcode-terminal": "^0.12.0",
-    "bun-types": "^1.0.25",
-    "typescript": "^5.3.3"
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.5",
+    "typescript": "^5.3.3",
+    "bun-types": "latest"
   }
 }

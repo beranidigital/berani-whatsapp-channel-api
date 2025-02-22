@@ -1,165 +1,127 @@
-# WhatsApp Server API
+# WhatsApp Multi-Tenant API Server
 
-A secure REST API server that enables sending WhatsApp messages programmatically using WhatsApp Web as a backend.
+A multi-tenant WhatsApp Web API server that allows managing multiple WhatsApp clients through a REST API and WebSocket interface.
 
 ## Features
 
-- 🔒 Secure authentication with API keys
-- 🚀 Express-based REST API
-- 📱 WhatsApp Web client integration
-- 🔍 QR code generation for WhatsApp Web authentication
-- 🛡️ Built-in security features (rate limiting, CORS, Helmet)
-- 📝 TypeScript for type safety
+- Multi-tenant WhatsApp client management
+- REST API for client operations
+- Real-time updates via WebSocket
+- JWT-based authentication
+- Admin panel support
 
-## Prerequisites
+## Setup
 
-- Node.js (v14 or higher)
-- npm or pnpm
-- A WhatsApp account
-
-## Installation
-
-1. Clone the repository
-2. Install dependencies:
+1. Install dependencies:
 ```bash
-pnpm install
-```
-3. Create a `.env` file in the root directory with the following variables:
-```env
-PORT=3000
-API_KEY=your_secure_api_key_here
-ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
+bun install
 ```
 
-## Development
-
+2. Configure environment variables:
 ```bash
-# Start development server with hot reload
-pnpm dev
+cp .env.example .env
+```
+Edit the `.env` file with your configuration.
 
-# Build the project
-pnpm build
+3. Start the server:
+```bash
+# Development
+bun run dev
 
-# Start production server
-pnpm start
+# Production
+bun run start
 ```
 
-## Authentication
+## API Documentation
 
-The server uses API key authentication. Include your API key in requests using the `x-api-key` header:
+### Authentication
 
 ```http
-x-api-key: your_secure_api_key_here
-```
-
-## API Endpoints
-
-### Get Server Status
-```http
-GET /api/status
-```
-Returns the current status of the WhatsApp client.
-
-**Response**
-```json
-{
-  "status": "success",
-  "message": "WhatsApp client is running",
-  "isReady": true
-}
-```
-
-### Get QR Code
-```http
-GET /api/qr
-```
-Returns the QR code for WhatsApp Web authentication.
-
-**Response**
-```json
-{
-  "status": "success",
-  "qr": "data:image/png;base64,..."
-}
-```
-
-### Send Message
-```http
-POST /api/send-message
+POST /api/auth/login
 Content-Type: application/json
 
 {
-  "number": "1234567890",
-  "message": "Hello from WhatsApp API!"
+  "username": "admin",
+  "password": "your-password"
 }
 ```
 
-**Parameters**
-- `number`: Phone number in international format (without + or spaces)
-- `message`: Text message to send
+### Tenant Management
 
-**Response**
-```json
+```http
+# Initialize new WhatsApp client
+POST /api/tenants/:tenantId/init
+Authorization: Bearer <token>
+
+# Remove WhatsApp client
+DELETE /api/tenants/:tenantId
+Authorization: Bearer <token>
+
+# List all clients
+GET /api/tenants
+Authorization: Bearer <token>
+
+# Get client status
+GET /api/tenants/:tenantId/status
+Authorization: Bearer <token>
+```
+
+### Messaging
+
+```http
+POST /api/tenants/:tenantId/messages
+Authorization: Bearer <token>
+Content-Type: application/json
+
 {
-  "status": "success",
-  "message": "Message sent successfully"
+  "to": "phone-number",
+  "message": "Hello World!"
 }
 ```
 
-## Security Features
+## WebSocket Events
 
-1. **Rate Limiting**: Limits each IP to 100 requests per 15 minutes
-2. **CORS Protection**: Configurable allowed origins through environment variables
-3. **Helmet**: HTTP headers for security
-4. **API Key Authentication**: Required for all API endpoints
+Connect to WebSocket with authentication:
+```javascript
+const socket = io('http://localhost:3000', {
+  auth: {
+    token: 'your-jwt-token'
+  }
+});
+```
 
-## Environment Variables
+### Events from Server
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| PORT | Server port number | 3000 |
-| API_KEY | API key for authentication | Required |
-| ALLOWED_ORIGINS | Comma-separated list of allowed CORS origins | * |
+- `whatsapp_event`: General WhatsApp events
+  - `qr`: New QR code for authentication
+  - `ready`: Client is ready
+  - `authenticated`: Client authenticated
+  - `disconnected`: Client disconnected
+- `clients_list`: List of all clients
+- `client_status`: Status update for specific client
+
+### Events to Server
+
+- `get_all_clients`: Request list of all clients
+- `get_client_status`: Request status for specific client
+
+## Security
+
+- All API endpoints (except login) require JWT authentication
+- WebSocket connections require JWT authentication
+- Admin credentials are configured via environment variables
+- CORS origins must be explicitly configured
 
 ## Error Handling
 
-The API returns consistent error responses in the following format:
+The API returns standard HTTP status codes:
+- 200: Success
+- 400: Bad Request
+- 401: Unauthorized
+- 500: Server Error
 
+All error responses include an error message in the format:
 ```json
 {
-  "status": "error",
-  "message": "Error description"
+  "error": "Error message here"
 }
-```
-
-Common HTTP status codes:
-- 400: Bad Request (missing parameters)
-- 401: Unauthorized (invalid API key)
-- 404: Not Found (QR code not available or invalid phone number)
-- 429: Too Many Requests (rate limit exceeded)
-- 500: Internal Server Error
-
-## TypeScript Types
-
-The project includes TypeScript definitions for all request/response types:
-
-```typescript
-interface ApiResponse {
-  status: 'success' | 'error';
-  message?: string;
-}
-
-interface StatusResponse extends ApiResponse {
-  isReady: boolean;
-}
-
-interface QrResponse extends ApiResponse {
-  qr?: string;
-}
-
-interface MessageRequest {
-  number: string;
-  message: string;
-}
-```
-
