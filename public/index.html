@@ -89,10 +89,55 @@
         .qr-code img {
             max-width: 200px;
         }
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .api-key-modal {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            text-align: center;
+        }
+        .api-key-modal h2 {
+            margin-top: 0;
+        }
+        .api-key-modal .form-group {
+            margin: 20px 0;
+        }
     </style>
 </head>
 <body>
-    <div id="app" class="container">
+    <div id="app">
+        <div v-if="!apiKey" class="overlay">
+            <div class="api-key-modal">
+                <h2>API Key Required</h2>
+                <div class="form-group">
+                    <label for="apiKeyInput">Please enter your API key to continue:</label>
+                    <input
+                        type="password"
+                        id="apiKeyInput"
+                        v-model="tempApiKey"
+                        @keyup.enter="submitApiKey"
+                        placeholder="Enter API key">
+                </div>
+                <button class="btn" @click="submitApiKey" :disabled="!tempApiKey">
+                    Submit
+                </button>
+                <p class="error" v-if="error">{{ error }}</p>
+            </div>
+        </div>
+        <div class="container">
         <div class="card">
             <h2>Create New Tenant</h2>
             <div class="form-group">
@@ -138,27 +183,40 @@
                     </button>
                 </div>
             </div>
+            </div>
         </div>
     </div>
 
     <script>
+        
         const { createApp, ref, onMounted } = Vue
 
         createApp({
             setup() {
                 const apiKey = ref('')
+                const tempApiKey = ref('')
                 const newTenantId = ref('')
                 const tenants = ref([])
                 const error = ref('')
                 const qrCodes = ref({})
                 const messageData = ref({})
 
+                const submitApiKey = async () => {
+                    if (!tempApiKey.value) return
+                    apiKey.value = tempApiKey.value
+                    try {
+                        await fetchTenants()
+                    } catch (err) {
+                        error.value = 'Invalid API key'
+                        apiKey.value = ''
+                    }
+                }
+
                 const fetchTenants = async () => {
                     try {
                         const response = await fetch('/api/tenants', {
                             headers: {
                                 'x-api-key': apiKey.value,
-                                'x-tenant-id': 'dummy' // Required by middleware but not used for this endpoint
                             }
                         })
                         const data = await response.json()
@@ -183,13 +241,13 @@
                             localStorage.removeItem('apiKey')
                             error.value = data.message
                             apiKey.value = '' // Clear the invalid key
-                            promptForApiKey()
+                            
                         }
                     } catch (err) {
                         localStorage.removeItem('apiKey')
                         error.value = 'Failed to fetch tenants'
                         apiKey.value = '' // Clear the invalid key
-                        promptForApiKey()
+                        
                     }
                 }
 
@@ -299,21 +357,6 @@
                     }
                 }
 
-                const promptForApiKey = () => {
-                    const key = prompt('Please enter your API key:')
-                    if (key) {
-                        apiKey.value = key
-                        fetchTenants().catch(() => {
-                            error.value = 'Invalid API key'
-                            apiKey.value = '' // Clear the invalid key
-                            promptForApiKey()
-                        })
-                    } else if (key === null && !apiKey.value) {
-                        // Only prompt again if cancelled and we don't have a valid key
-                        promptForApiKey()
-                    }
-                }
-
                 onMounted(async () => {
                     const savedApiKey = localStorage.getItem('apiKey')
                     if (savedApiKey) {
@@ -323,27 +366,26 @@
                             startAutoRefresh()
                         } catch (err) {
                             localStorage.removeItem('apiKey')
-                            apiKey.value = '' // Clear the invalid key
+                            apiKey.value = ''
                             error.value = 'Saved API key is invalid'
-                            promptForApiKey()
                         }
-                    } else {
-                        promptForApiKey()
                     }
                 })
 
                 return {
+                    apiKey,
+                    tempApiKey,
                     newTenantId,
                     tenants,
                     error,
                     qrCodes,
                     messageData,
+                    submitApiKey,
                     createTenant,
                     getQRCode,
                     deleteTenant,
                     isValidMessage,
-                    sendMessage,
-                    promptForApiKey
+                    sendMessage
                 }
             }
         }).mount('#app')

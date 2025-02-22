@@ -1,14 +1,18 @@
 import { Router } from 'express';
 import { TenantController } from '../controllers/tenant.controller';
 
-export const createTenantRouter = (tenantController: TenantController): Router => {
-    const router = Router();
+export const createTenantRouter = (tenantController: TenantController) => {
+    const listRouter = Router();
+    const protectedRouter = Router();
 
-    router.post('/:tenantId', tenantController.createTenant);
-    router.get('/', tenantController.listTenants);
-    router.get('/status', tenantController.getTenantStatus);
-    router.get('/qr', tenantController.getQrCode);
-    router.delete('/:tenantId', tenantController.deleteTenant);
+    // Public routes (no tenant check needed)
+    listRouter.get('/', tenantController.listTenants);
 
-    return router;
+    // Protected routes (require tenant check)
+    protectedRouter.post('/:tenantId', tenantController.createTenant);
+    protectedRouter.get('/status', tenantController.getTenantStatus);
+    protectedRouter.get('/qr', tenantController.getQrCode);
+    protectedRouter.delete('/:tenantId', tenantController.deleteTenant);
+
+    return { listRouter, protectedRouter };
 };

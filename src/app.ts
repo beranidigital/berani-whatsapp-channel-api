@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { DatabaseService } from './database';
 import { WhatsAppService } from './services/whatsapp.service';
 import { AuthMiddleware, errorHandler } from './middleware/auth.middleware';
+import { TenantMiddleware } from './middleware/tenant.middleware';
 import { TenantController } from './controllers/tenant.controller';
 import { MessageController } from './controllers/message.controller';
 import { createTenantRouter } from './routes/tenant.routes';
@@ -26,7 +27,8 @@ export const createApp = async () => {
     const messageController = new MessageController(db, whatsappService);
 
     // Initialize middleware
-    const authMiddleware = new AuthMiddleware(db);
+    const authMiddleware = new AuthMiddleware();
+    const tenantMiddleware = new TenantMiddleware(db);
 
     // Security middleware
     app.use(
@@ -56,8 +58,12 @@ export const createApp = async () => {
     app.use(limiter);
 
     // Routes
-    app.use('/api/tenants', authMiddleware.authenticate, createTenantRouter(tenantController));
-    app.use('/api', authMiddleware.authenticate, createMessageRouter(messageController));
+    // Split tenant routes - listing without tenant check, other operations with tenant check
+    
+    const { listRouter, protectedRouter } = createTenantRouter(tenantController);
+    app.use('/api/tenants', authMiddleware.authenticate, listRouter); // List tenants
+    app.use('/api/tenants', authMiddleware.authenticate, tenantMiddleware.checkTenant, protectedRouter); // Other tenant operations
+    app.use('/api', authMiddleware.authenticate, tenantMiddleware.checkTenant, createMessageRouter(messageController));
 
     // Error handling
     app.use(errorHandler);
