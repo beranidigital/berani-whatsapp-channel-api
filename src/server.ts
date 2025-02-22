@@ -103,7 +103,7 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
 });
 
 // Authentication middleware
-const authenticateRequest = (
+const authenticateRequest = async (
     req: Request,
     res: Response,
     next: NextFunction
@@ -125,6 +125,18 @@ const authenticateRequest = (
             message: 'Tenant ID is required'
         };
         return res.status(400).json(response);
+    }
+
+    // Skip tenant existence check for tenant creation and listing endpoints
+    if (req.path !== '/api/tenants' && !req.path.startsWith('/api/tenants/')) {
+        const tenant = await db.getTenant(tenantId);
+        if (!tenant) {
+            const response: ApiResponse = {
+                status: 'error',
+                message: 'Tenant not found'
+            };
+            return res.status(404).json(response);
+        }
     }
 
     (req as AuthenticatedRequest).tenant = tenantId;

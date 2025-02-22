@@ -99,11 +99,7 @@
                 <label for="tenantId">Tenant ID</label>
                 <input type="text" id="tenantId" v-model="newTenantId" placeholder="Enter tenant ID">
             </div>
-            <div class="form-group">
-                <label for="apiKey">API Key</label>
-                <input type="password" id="apiKey" v-model="apiKey" placeholder="Enter API key">
-            </div>
-            <button class="btn" @click="createTenant" :disabled="!newTenantId || !apiKey">Create Tenant</button>
+            <button class="btn" @click="createTenant" :disabled="!newTenantId">Create Tenant</button>
             <p class="error" v-if="error">{{ error }}</p>
         </div>
 
@@ -168,6 +164,10 @@
                         const data = await response.json()
                         if (data.status === 'success') {
                             tenants.value = data.tenants
+                            // Save API key only after successful fetch
+                            localStorage.setItem('apiKey', apiKey.value)
+                            // Start auto-refresh since we have a valid key
+                            startAutoRefresh()
                             // Initialize message data for each tenant
                             data.tenants.forEach(tenant => {
                                 if (!messageData.value[tenant.id]) {
@@ -178,10 +178,14 @@
                                 }
                             })
                         } else {
+                            localStorage.removeItem('apiKey')
                             error.value = data.message
+                            promptForApiKey()
                         }
                     } catch (err) {
+                        localStorage.removeItem('apiKey')
                         error.value = 'Failed to fetch tenants'
+                        promptForApiKey()
                     }
                 }
 
@@ -270,6 +274,10 @@
                                 message: ''
                             }
                             alert('Message sent successfully!')
+                        } else if (data.message === 'Tenant not found') {
+                            error.value = 'Tenant not found. Please refresh the page and try again.'
+                            // Auto refresh tenants list to get the latest state
+                            await fetchTenants()
                         } else {
                             error.value = data.message
                         }
@@ -287,17 +295,38 @@
                     }
                 }
 
-                onMounted(() => {
+                const promptForApiKey = async () => {
+                    const key = prompt('Please enter your API key:')
+                    if (key) {
+                        apiKey.value = key
+                        try {
+                            await fetchTenants()
+                        } catch (err) {
+                            alert('Invalid API key')
+                            promptForApiKey()
+                        }
+                    } else {
+                        promptForApiKey()
+                    }
+                }
+
+                onMounted(async () => {
                     const savedApiKey = localStorage.getItem('apiKey')
                     if (savedApiKey) {
                         apiKey.value = savedApiKey
-                        fetchTenants()
-                        startAutoRefresh()
+                        try {
+                            await fetchTenants()
+                            startAutoRefresh()
+                        } catch (err) {
+                            localStorage.removeItem('apiKey')
+                            promptForApiKey()
+                        }
+                    } else {
+                        promptForApiKey()
                     }
                 })
 
                 return {
-                    apiKey,
                     newTenantId,
                     tenants,
                     error,
@@ -307,7 +336,8 @@
                     getQRCode,
                     deleteTenant,
                     isValidMessage,
-                    sendMessage
+                    sendMessage,
+                    promptForApiKey
                 }
             }
         }).mount('#app')
