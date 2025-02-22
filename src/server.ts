@@ -6,12 +6,17 @@ import helmet from 'helmet';
 import qrcodeTerminal from 'qrcode-terminal';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { ApiResponse, AuthenticatedRequest, MessageRequest, QrResponse, StatusResponse } from './types';
+import { ApiResponse, AuthenticatedRequest, MessageRequest, QrResponse, StatusResponse, Tenant, TenantsResponse } from './types';
+import { DatabaseService } from './database';
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
+const db = new DatabaseService();
+
+// Initialize database
+db.init().catch(console.error);
 
 // Security middleware
 app.use(helmet());
@@ -27,37 +32,52 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Initialize WhatsApp client
-const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    }
-});
+// Function to initialize a new WhatsApp client for a tenant
+async function initializeWhatsAppClient(tenantId: string) {
+    const client = new Client({
+        authStrategy: new LocalAuth({ clientId: tenantId }),
+        puppeteer: {
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        }
+    });
 
-// Store QR code
-let qrCode: string | null = null;
+    const tenant: Tenant = {
+        id: tenantId,
+        apiKey: process.env.API_KEY || '',
+        client,
+        qrCode: null,
+        isReady: false
+    };
 
-// WhatsApp client events
-client.on('qr', async (qr: string) => {
-    console.log('QR Code received');
-    qrCode = await qrcode.toDataURL(qr);
-    qrcodeTerminal.generate(qr, { small: true });
-});
+    // Set up client event handlers
+    client.on('qr', async (qr: string) => {
+        console.log(`QR Code received for tenant: ${tenantId}`);
+        const qrDataUrl = await qrcode.toDataURL(qr);
+        await db.updateTenantStatus(tenantId, false, qrDataUrl);
+        qrcodeTerminal.generate(qr, { small: true });
+    });
 
-client.on('ready', () => {
-    console.log('Client is ready!');
-});
+    client.on('ready', async () => {
+        console.log(`Client is ready for tenant: ${tenantId}`);
+        await db.updateTenantStatus(tenantId, true, null);
+    });
 
-client.on('authenticated', () => {
-    console.log('Client is authenticated!');
-});
+    client.on('authenticated', () => {
+        console.log(`Client is authenticated for tenant: ${tenantId}`);
+    });
 
-client.on('auth_failure', (msg: string) => {
-    console.error('Authentication failure:', msg);
-});
+    client.on('auth_failure', async (msg: string) => {
+        console.error(`Authentication failure for tenant ${tenantId}:`, msg);
+        await db.updateTenantStatus(tenantId, false);
+    });
 
-client.initialize();
+    // Initialize client
+    client.initialize();
+
+    // Store tenant data
+    await db.setTenant(tenantId, tenant);
+    return tenant;
+}
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
@@ -75,7 +95,9 @@ const authenticateRequest = (
     res: Response,
     next: NextFunction
 ) => {
-    const apiKey = req.headers['x-api-key'];
+    const apiKey = req.header('x-api-key');
+    const tenantId = req.header('x-tenant-id');
+
     if (!apiKey || apiKey !== process.env.API_KEY) {
         const response: ApiResponse = {
             status: 'error',
@@ -83,24 +105,83 @@ const authenticateRequest = (
         };
         return res.status(401).json(response);
     }
+
+    if (!tenantId) {
+        const response: ApiResponse = {
+            status: 'error',
+            message: 'Tenant ID is required'
+        };
+        return res.status(400).json(response);
+    }
+
+    (req as AuthenticatedRequest).tenant = tenantId;
     next();
 };
 
 // Routes
-app.get('/api/status', authenticateRequest, (req: Request, res: Response) => {
-    const response: StatusResponse = {
+app.post('/api/tenants/:tenantId', authenticateRequest, async (req: Request, res: Response) => {
+    const { tenantId } = req.params;
+    
+    if (await db.hasTenant(tenantId)) {
+        const response: ApiResponse = {
+            status: 'error',
+            message: 'Tenant already exists'
+        };
+        return res.status(400).json(response);
+    }
+
+    const tenant = await initializeWhatsAppClient(tenantId);
+    const response: ApiResponse = {
         status: 'success',
-        message: 'WhatsApp client is running',
-        isReady: client.pupPage ? true : false
+        message: 'Tenant created successfully'
+    };
+    res.status(201).json(response);
+});
+
+app.get('/api/tenants', authenticateRequest, async (req: Request, res: Response) => {
+    const tenants = await db.getAllTenants();
+    const tenantsArray = tenants.map(({ id, isReady }) => ({ id, isReady }));
+    const response: TenantsResponse = {
+        status: 'success',
+        tenants: tenantsArray
     };
     res.json(response);
 });
 
-app.get('/api/qr', authenticateRequest, (req: Request, res: Response) => {
-    if (qrCode) {
+app.get('/api/status', authenticateRequest, async (req: Request, res: Response) => {
+    const tenant = await db.getTenant((req as AuthenticatedRequest).tenant!);
+    
+    if (!tenant) {
+        const response: ApiResponse = {
+            status: 'error',
+            message: 'Tenant not found'
+        };
+        return res.status(404).json(response);
+    }
+
+    const response: StatusResponse = {
+        status: 'success',
+        message: 'WhatsApp client status',
+        isReady: tenant.isReady
+    };
+    res.json(response);
+});
+
+app.get('/api/qr', authenticateRequest, async (req: Request, res: Response) => {
+    const tenant = await db.getTenant((req as AuthenticatedRequest).tenant!);
+    
+    if (!tenant) {
+        const response: ApiResponse = {
+            status: 'error',
+            message: 'Tenant not found'
+        };
+        return res.status(404).json(response);
+    }
+
+    if (tenant.qrCode) {
         const response: QrResponse = {
             status: 'success',
-            qr: qrCode
+            qr: tenant.qrCode
         };
         res.json(response);
     } else {
@@ -114,6 +195,16 @@ app.get('/api/qr', authenticateRequest, (req: Request, res: Response) => {
 
 app.post('/api/send-message', authenticateRequest, async (req: Request, res: Response) => {
     try {
+        const tenant = await db.getTenant((req as AuthenticatedRequest).tenant!);
+        
+        if (!tenant || !tenant.client) {
+            const response: ApiResponse = {
+                status: 'error',
+                message: 'Tenant not found'
+            };
+            return res.status(404).json(response);
+        }
+
         const { number, message } = req.body as MessageRequest;
         
         if (!number || !message) {
@@ -128,11 +219,11 @@ app.post('/api/send-message', authenticateRequest, async (req: Request, res: Res
         const formattedNumber = number.replace(/\D/g, '');
         const chatId = `${formattedNumber}@c.us`;
 
-        console.log('Sending message to:', chatId);
+        console.log(`Sending message to: ${chatId} for tenant: ${(req as AuthenticatedRequest).tenant}`);
         console.log('Message:', message);
         
         // Check if number exists on WhatsApp
-        const isRegistered = await client.isRegisteredUser(chatId);
+        const isRegistered = await tenant.client.isRegisteredUser(chatId);
         if (!isRegistered) {
             const response: ApiResponse = {
                 status: 'error',
@@ -142,7 +233,7 @@ app.post('/api/send-message', authenticateRequest, async (req: Request, res: Res
         }
 
         // Send message
-        await client.sendMessage(chatId, message);
+        await tenant.client.sendMessage(chatId, message);
         
         const response: ApiResponse = {
             status: 'success',
@@ -154,6 +245,39 @@ app.post('/api/send-message', authenticateRequest, async (req: Request, res: Res
         const response: ApiResponse = {
             status: 'error',
             message: 'Failed to send message'
+        };
+        res.status(500).json(response);
+    }
+});
+
+app.delete('/api/tenants/:tenantId', authenticateRequest, async (req: Request, res: Response) => {
+    const { tenantId } = req.params;
+    const tenant = await db.getTenant(tenantId);
+    
+    if (!tenant) {
+        const response: ApiResponse = {
+            status: 'error',
+            message: 'Tenant not found'
+        };
+        return res.status(404).json(response);
+    }
+
+    try {
+        if (tenant.client) {
+            await tenant.client.destroy();
+        }
+        await db.deleteTenant(tenantId);
+        
+        const response: ApiResponse = {
+            status: 'success',
+            message: 'Tenant deleted successfully'
+        };
+        res.json(response);
+    } catch (error) {
+        console.error(`Error deleting tenant ${tenantId}:`, error);
+        const response: ApiResponse = {
+            status: 'error',
+            message: 'Failed to delete tenant'
         };
         res.status(500).json(response);
     }
