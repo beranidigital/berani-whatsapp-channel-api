@@ -25,7 +25,8 @@ class WhatsAppService {
             }),
             puppeteer: {
                 ...config.whatsapp.puppeteerOptions,
-                executablePath: config.whatsapp.chromePath
+                executablePath: config.whatsapp.chromePath,
+                args: ['--no-sandbox', '--disable-setuid-sandbox'],
             }
         });
 
