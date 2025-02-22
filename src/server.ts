@@ -24,6 +24,7 @@ app.use(cors({
     origin: process.env.ALLOWED_ORIGINS?.split(',') || '*'
 }));
 app.use(express.json());
+app.use(express.static('public'));
 
 // Rate limiting
 const limiter = rateLimit({
