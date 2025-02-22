@@ -177,14 +177,18 @@
                                     }
                                 }
                             })
+                            // Clear any previous error message
+                            error.value = ''
                         } else {
                             localStorage.removeItem('apiKey')
                             error.value = data.message
+                            apiKey.value = '' // Clear the invalid key
                             promptForApiKey()
                         }
                     } catch (err) {
                         localStorage.removeItem('apiKey')
                         error.value = 'Failed to fetch tenants'
+                        apiKey.value = '' // Clear the invalid key
                         promptForApiKey()
                     }
                 }
@@ -295,17 +299,17 @@
                     }
                 }
 
-                const promptForApiKey = async () => {
+                const promptForApiKey = () => {
                     const key = prompt('Please enter your API key:')
                     if (key) {
                         apiKey.value = key
-                        try {
-                            await fetchTenants()
-                        } catch (err) {
-                            alert('Invalid API key')
+                        fetchTenants().catch(() => {
+                            error.value = 'Invalid API key'
+                            apiKey.value = '' // Clear the invalid key
                             promptForApiKey()
-                        }
-                    } else {
+                        })
+                    } else if (key === null && !apiKey.value) {
+                        // Only prompt again if cancelled and we don't have a valid key
                         promptForApiKey()
                     }
                 }
@@ -319,6 +323,8 @@
                             startAutoRefresh()
                         } catch (err) {
                             localStorage.removeItem('apiKey')
+                            apiKey.value = '' // Clear the invalid key
+                            error.value = 'Saved API key is invalid'
                             promptForApiKey()
                         }
                     } else {
