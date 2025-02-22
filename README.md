@@ -1,127 +1,151 @@
-# WhatsApp Multi-Tenant API Server
+# WhatsApp Web API Server
 
-A multi-tenant WhatsApp Web API server that allows managing multiple WhatsApp clients through a REST API and WebSocket interface.
+A Node.js server that manages multiple WhatsApp Web clients through a REST API interface using the whatsapp-web.js library.
 
 ## Features
 
-- Multi-tenant WhatsApp client management
-- REST API for client operations
-- Real-time updates via WebSocket
-- JWT-based authentication
-- Admin panel support
+- Multiple WhatsApp client management
+- QR code generation for client authentication
+- Message sending capabilities
+- Client status monitoring
+- Docker support for easy deployment
+- Structured logging
+- Environment-based configuration
 
-## Setup
+## Prerequisites
 
-1. Install dependencies:
+- Node.js >= 14.0.0
+- Google Chrome (for WhatsApp Web)
+- Docker and Docker Compose (for containerized deployment)
+
+## Installation
+
+### Local Development
+
+1. Clone the repository
+2. Install dependencies:
 ```bash
-bun install
+npm install
 ```
-
-2. Configure environment variables:
+3. Copy the example environment file:
 ```bash
 cp .env.example .env
 ```
-Edit the `.env` file with your configuration.
-
-3. Start the server:
+4. Modify the .env file as needed
+5. Start the server:
 ```bash
-# Development
-bun run dev
-
-# Production
-bun run start
+npm run dev
 ```
 
-## API Documentation
+### Docker Deployment
 
-### Authentication
+1. Build and start the container:
+```bash
+docker compose up -d
+```
 
-```http
-POST /api/auth/login
+The server will be available at http://localhost:3000
+
+## API Endpoints
+
+### Create New Client
+```
+POST /api/clients
 Content-Type: application/json
 
 {
-  "username": "admin",
-  "password": "your-password"
+    "id": "unique-client-id"
 }
 ```
 
-### Tenant Management
-
-```http
-# Initialize new WhatsApp client
-POST /api/tenants/:tenantId/init
-Authorization: Bearer <token>
-
-# Remove WhatsApp client
-DELETE /api/tenants/:tenantId
-Authorization: Bearer <token>
-
-# List all clients
-GET /api/tenants
-Authorization: Bearer <token>
-
-# Get client status
-GET /api/tenants/:tenantId/status
-Authorization: Bearer <token>
+### Get Client QR Code
+```
+GET /api/clients/{clientId}/qr
 ```
 
-### Messaging
+### Get All Clients Status
+```
+GET /api/clients
+```
 
-```http
-POST /api/tenants/:tenantId/messages
-Authorization: Bearer <token>
+### Get Specific Client Status
+```
+GET /api/clients/{clientId}
+```
+
+### Send Message
+```
+POST /api/clients/{clientId}/send
 Content-Type: application/json
 
 {
-  "to": "phone-number",
-  "message": "Hello World!"
+    "number": "1234567890",
+    "message": "Hello World"
 }
 ```
 
-## WebSocket Events
-
-Connect to WebSocket with authentication:
-```javascript
-const socket = io('http://localhost:3000', {
-  auth: {
-    token: 'your-jwt-token'
-  }
-});
+### Delete/Disconnect Client
+```
+DELETE /api/clients/{clientId}
 ```
 
-### Events from Server
+## Configuration
 
-- `whatsapp_event`: General WhatsApp events
-  - `qr`: New QR code for authentication
-  - `ready`: Client is ready
-  - `authenticated`: Client authenticated
-  - `disconnected`: Client disconnected
-- `clients_list`: List of all clients
-- `client_status`: Status update for specific client
+Configuration can be done through environment variables:
 
-### Events to Server
+- `PORT`: Server port (default: 3000)
+- `NODE_ENV`: Environment (development/production)
+- `LOG_LEVEL`: Logging level (default: info)
+- `CHROME_PATH`: Path to Chrome executable
+- `MAX_CONNECTIONS`: Maximum number of simultaneous WhatsApp connections
 
-- `get_all_clients`: Request list of all clients
-- `get_client_status`: Request status for specific client
+## Logging
 
-## Security
+Logs are stored in the `logs` directory:
+- `combined.log`: All logs
+- `error.log`: Error logs only
 
-- All API endpoints (except login) require JWT authentication
-- WebSocket connections require JWT authentication
-- Admin credentials are configured via environment variables
-- CORS origins must be explicitly configured
+## Directory Structure
+
+```
+.
+├── src/
+│   ├── controllers/
+│   ├── routes/
+│   ├── services/
+│   ├── utils/
+│   ├── app.js
+│   └── index.js
+├── config/
+├── logs/
+├── .wwebjs_auth/
+├── .env
+├── Dockerfile
+├── docker-compose.yml
+└── package.json
+```
 
 ## Error Handling
 
-The API returns standard HTTP status codes:
-- 200: Success
-- 400: Bad Request
-- 401: Unauthorized
-- 500: Server Error
+The API uses standard HTTP status codes and returns errors in the following format:
 
-All error responses include an error message in the format:
 ```json
 {
-  "error": "Error message here"
+    "error": "Error message",
+    "message": "Additional details (if any)"
 }
+```
+
+## Production Deployment
+
+For production deployment, make sure to:
+
+1. Set appropriate environment variables
+2. Configure proper logging
+3. Use a reverse proxy (like Nginx) for SSL termination
+4. Set up monitoring and alerting
+5. Implement rate limiting and security measures
+
+## License
+
+ISC
