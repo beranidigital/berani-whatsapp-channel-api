@@ -15,7 +15,6 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - LOG_LEVEL=info
-      - CHROME_PATH=/usr/bin/google-chrome
       - MAX_CONNECTIONS=10
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
