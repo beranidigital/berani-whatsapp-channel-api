@@ -7,22 +7,18 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 # Install chromium and other dependencies
 RUN apk add --no-cache \
     chromium \
-    chromium-chromedriver \
     nss \
     freetype \
     freetype-dev \
     harfbuzz \
     ca-certificates \
     ttf-freefont \
-    nodejs \
     dbus \
-    mesa-vulkan-intel \
-    vulkan-loader \
     curl \
     # Add packages for security
     dumb-init
 
-# Create required directories
+# Create required directories and set permissions
 RUN mkdir -p /var/run/dbus && \
     mkdir -p /app/.wwebjs_auth/session-kls/Default/Code\ Cache/js && \
     mkdir -p /app/.wwebjs_auth/session-kls/Default/Code\ Cache/wasm && \
@@ -34,9 +30,12 @@ RUN npm install -g npm@10.2.4
 # Set environment variables
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
-    NODE_ENV=production
+    NODE_ENV=production \
+    CHROME_NO_SANDBOX=true \
+    CHROME_DISABLE_GPU=true \
+    DISABLE_SETUID_SANDBOX=true
 
-# Set working directory and change ownership
+# Set working directory
 WORKDIR /app
 
 # Switch to non-root user
@@ -61,5 +60,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Use dumb-init as entrypoint
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 
-# Start the application
-CMD ["npm", "start"]
+# Start the application with additional chrome flags
+CMD ["node", "--unhandled-rejections=strict", "src/index.js", "--disable-dev-shm-usage", "--no-sandbox", "--disable-gpu", "--disable-software-rasterizer"]
