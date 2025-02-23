@@ -1,9 +1,11 @@
 const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
+const swaggerUi = require('swagger-ui-express');
 const config = require('../config');
 const logger = require('./utils/logger');
 const whatsappRoutes = require('./routes/whatsapp.routes');
+const swaggerSpecs = require('./utils/swagger');
 
 // Create Express app
 const app = express();
@@ -19,6 +21,12 @@ app.use(express.json());
 
 // Serve static files from public directory
 app.use(express.static('public'));
+
+// Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'WhatsApp Web API Documentation'
+}));
 
 // API routes (no /api prefix for demo compatibility)
 app.use('/', whatsappRoutes);
@@ -52,6 +60,7 @@ const startServer = () => {
         app.listen(config.port, () => {
             logger.info(`Server running on port ${config.port}`);
             logger.info(`Environment: ${config.nodeEnv}`);
+            logger.info(`API Documentation: http://localhost:${config.port}/api-docs`);
         });
     } catch (error) {
         logger.error('Failed to start server:', error);

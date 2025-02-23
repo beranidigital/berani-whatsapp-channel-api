@@ -87,7 +87,7 @@ async function createClient() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(customId ? { id: customId } : {})
+            body: JSON.stringify(customId ? { clientId: customId } : {})
         });
         const data = await response.json();
         currentClientId = data.clientId;

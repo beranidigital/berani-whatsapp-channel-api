@@ -3,27 +3,27 @@ const logger = require('../utils/logger');
 
 class WhatsAppController {
     async createClient(req, res) {
-        const { id = `client_${Date.now()}` } = req.body;
+        const { clientId = `client_${Date.now()}` } = req.body;
         try {
             // Check if client already exists
-            const existingClient = whatsappService.getClientStatus(id);
+            const existingClient = whatsappService.getClientStatus(clientId);
             if (existingClient) {
-                logger.info(`Returning existing client with ID: ${id}`);
+                logger.info(`Returning existing client with ID: ${clientId}`);
                 return res.json({
                     success: true,
                     message: 'Retrieved existing client',
-                    clientId: id,
+                    clientId: clientId,
                     status: existingClient
                 });
             }
             
-            await whatsappService.initializeClient(id);
-            logger.info(`Client initialization started for ID: ${id}`);
+            await whatsappService.initializeClient(clientId);
+            logger.info(`Client initialization started for ID: ${clientId}`);
             
             res.json({
                 success: true,
                 message: 'Client initialization started',
-                clientId: id
+                clientId: clientId
             });
         } catch (error) {
             logger.error('Failed to create client:', error);
@@ -32,7 +32,7 @@ class WhatsAppController {
                 return res.status(409).json({
                     error: error.message,
                     code: 'CLIENT_EXISTS',
-                    details: `Client with ID '${id}' already exists in the system`,
+                    details: `Client with ID '${clientId}' already exists in the system`,
                     suggestion: 'Try using a different client ID or destroy the existing client first'
                 });
             }
