@@ -7,9 +7,26 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 # Install chromium and other dependencies
 RUN apk add --no-cache \
     chromium \
+    chromium-chromedriver \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    nodejs \
+    dbus \
+    mesa-vulkan-intel \
+    vulkan-loader \
     curl \
     # Add packages for security
     dumb-init
+
+# Create required directories
+RUN mkdir -p /var/run/dbus && \
+    mkdir -p /app/.wwebjs_auth/session-kls/Default/Code\ Cache/js && \
+    mkdir -p /app/.wwebjs_auth/session-kls/Default/Code\ Cache/wasm && \
+    chown -R appuser:appgroup /app
 
 # Set npm version
 RUN npm install -g npm@10.2.4
@@ -21,7 +38,6 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 
 # Set working directory and change ownership
 WORKDIR /app
-RUN chown -R appuser:appgroup /app
 
 # Switch to non-root user
 USER appuser
