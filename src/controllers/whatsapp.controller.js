@@ -177,7 +177,7 @@ class WhatsAppController {
                 
                 // Wait for client to connect (up to 15 seconds)
                 let attempts = 0;
-                const maxAttempts = 15 / 0.25; // 15 seconds
+                const maxAttempts = 15 * 4; // 15 seconds with 250ms intervals
                 while (attempts < maxAttempts) {
                     clientStatus = whatsappService.getClientStatus(clientId);
                     if (clientStatus && clientStatus.status === 'connected') {
@@ -187,7 +187,7 @@ class WhatsAppController {
                     attempts++;
                 }
                 
-                if (!clientStatus || !clientStatus.connected) {
+                if (!clientStatus || !clientStatus.status === 'connected') {
                     return res.status(408).json({
                         error: 'Client connection timeout',
                         code: 'CONNECTION_TIMEOUT',
