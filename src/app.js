@@ -1,5 +1,6 @@
 const express = require('express');
 const morgan = require('morgan');
+const cors = require('cors');
 const config = require('../config');
 const logger = require('./utils/logger');
 const whatsappRoutes = require('./routes/whatsapp.routes');
@@ -10,11 +11,17 @@ const app = express();
 // Request logging middleware
 app.use(morgan('combined', { stream: logger.stream }));
 
+// Enable CORS
+app.use(cors());
+
 // Parse JSON bodies
 app.use(express.json());
 
-// API routes
-app.use('/api', whatsappRoutes);
+// Serve static files from public directory
+app.use(express.static('public'));
+
+// API routes (no /api prefix for demo compatibility)
+app.use('/', whatsappRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp API Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .qr-code {
+            margin: 20px 0;
+        }
+        #clientStatus {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f5f5f5;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        input[type="text"] {
+            padding: 8px;
+            margin: 5px;
+            width: 200px;
+        }
+        .error {
+            color: red;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>WhatsApp API Demo</h1>
+    
+    <div class="section">
+        <h2>1. Create New Client</h2>
+        <button onclick="createClient()">Create New WhatsApp Client</button>
+        <div id="clientId"></div>
+    </div>
+
+    <div class="section">
+        <h2>2. QR Code</h2>
+        <div class="qr-code">
+            <img id="qrCode" style="display: none;" alt="QR Code">
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>3. Client Status</h2>
+        <div id="clientStatus">No client connected</div>
+        <button onclick="checkStatus()">Check Status</button>
+    </div>
+
+    <div class="section">
+        <h2>4. Send Message</h2>
+        <input type="text" id="phoneNumber" placeholder="Phone number (with country code)">
+        <input type="text" id="message" placeholder="Message">
+        <button onclick="sendMessage()">Send Message</button>
+    </div>
+
+    <div class="section">
+        <h2>5. Disconnect Client</h2>
+        <button onclick="disconnectClient()">Disconnect Current Client</button>
+    </div>
+
+    <script>
+        let currentClientId = null;
+        const API_BASE = 'http://localhost:3000';
+
+        async function createClient() {
+            try {
+                const response = await fetch(`${API_BASE}/clients`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                currentClientId = data.clientId;
+                document.getElementById('clientId').textContent = `Client ID: ${currentClientId}`;
+                startPollingQR();
+            } catch (error) {
+                showError('Failed to create client: ' + error.message);
+            }
+        }
+
+        async function getQRCode() {
+            if (!currentClientId) return;
+            try {
+                const response = await fetch(`${API_BASE}/clients/${currentClientId}/qr`);
+                const data = await response.json();
+                if (data.qrCode) {
+                    const qrImg = document.getElementById('qrCode');
+                    qrImg.src = data.qrCode;
+                    qrImg.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Failed to get QR code:', error);
+            }
+        }
+
+        let qrInterval;
+        function startPollingQR() {
+            getQRCode();
+            qrInterval = setInterval(getQRCode, 5000);
+        }
+
+        async function checkStatus() {
+            if (!currentClientId) {
+                showError('No client connected');
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE}/clients/${currentClientId}`);
+                const data = await response.json();
+                document.getElementById('clientStatus').textContent = `Status: ${data.status}`;
+                if (data.status === 'CONNECTED') {
+                    clearInterval(qrInterval);
+                    document.getElementById('qrCode').style.display = 'none';
+                }
+            } catch (error) {
+                showError('Failed to check status: ' + error.message);
+            }
+        }
+
+        async function sendMessage() {
+            if (!currentClientId) {
+                showError('No client connected');
+                return;
+            }
+            const number = document.getElementById('phoneNumber').value;
+            const message = document.getElementById('message').value;
+            if (!number || !message) {
+                showError('Please enter both phone number and message');
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE}/clients/${currentClientId}/send`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ number, message })
+                });
+                const data = await response.json();
+                alert('Message sent successfully!');
+            } catch (error) {
+                showError('Failed to send message: ' + error.message);
+            }
+        }
+
+        async function disconnectClient() {
+            if (!currentClientId) {
+                showError('No client connected');
+                return;
+            }
+            try {
+                await fetch(`${API_BASE}/clients/${currentClientId}`, {
+                    method: 'DELETE'
+                });
+                currentClientId = null;
+                document.getElementById('clientId').textContent = '';
+                document.getElementById('clientStatus').textContent = 'No client connected';
+                document.getElementById('qrCode').style.display = 'none';
+                clearInterval(qrInterval);
+                alert('Client disconnected successfully!');
+            } catch (error) {
+                showError('Failed to disconnect client: ' + error.message);
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            document.body.appendChild(errorDiv);
+            setTimeout(() => errorDiv.remove(), 5000);
+        }
+
+        // Check status periodically
+        setInterval(checkStatus, 10000);
+    </script>
+</body>
+</html>

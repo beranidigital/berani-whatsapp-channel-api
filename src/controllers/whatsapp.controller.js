@@ -4,12 +4,8 @@ const logger = require('../utils/logger');
 class WhatsAppController {
     async createClient(req, res) {
         try {
-            const { id } = req.body;
+            const { id = `client_${Date.now()}` } = req.body;
             
-            if (!id) {
-                return res.status(400).json({ error: 'Client ID is required' });
-            }
-
             await whatsappService.initializeClient(id);
             logger.info(`Client initialization started for ID: ${id}`);
             
