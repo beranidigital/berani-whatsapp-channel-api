@@ -46,6 +46,7 @@
     
     <div class="section">
         <h2>1. Create New Client</h2>
+        <input type="text" id="customClientId" placeholder="Custom client ID (optional)">
         <button onclick="createClient()">Create New WhatsApp Client</button>
         <div id="clientId"></div>
     </div>
@@ -78,20 +79,24 @@
     <script>
         let currentClientId = null;
         const API_BASE = 'http://localhost:3000';
-
-        async function createClient() {
-            try {
-                const response = await fetch(`${API_BASE}/clients`, {
-                    method: 'POST'
-                });
-                const data = await response.json();
-                currentClientId = data.clientId;
-                document.getElementById('clientId').textContent = `Client ID: ${currentClientId}`;
-                startPollingQR();
-            } catch (error) {
-                showError('Failed to create client: ' + error.message);
-            }
-        }
+async function createClient() {
+    try {
+        const customId = document.getElementById('customClientId').value.trim();
+        const response = await fetch(`${API_BASE}/clients`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(customId ? { id: customId } : {})
+        });
+        const data = await response.json();
+        currentClientId = data.clientId;
+        document.getElementById('clientId').textContent = `Client ID: ${currentClientId}`;
+        startPollingQR();
+    } catch (error) {
+        showError('Failed to create client: ' + error.message);
+    }
+}
 
         async function getQRCode() {
             if (!currentClientId) return;
