@@ -3,8 +3,19 @@ const logger = require('../utils/logger');
 
 class WhatsAppController {
     async createClient(req, res) {
+        const { id = `client_${Date.now()}` } = req.body;
         try {
-            const { id = `client_${Date.now()}` } = req.body;
+            // Check if client already exists
+            const existingClient = whatsappService.getClientStatus(id);
+            if (existingClient) {
+                logger.info(`Returning existing client with ID: ${id}`);
+                return res.json({
+                    success: true,
+                    message: 'Retrieved existing client',
+                    clientId: id,
+                    status: existingClient
+                });
+            }
             
             await whatsappService.initializeClient(id);
             logger.info(`Client initialization started for ID: ${id}`);
@@ -45,8 +56,9 @@ class WhatsAppController {
     }
 
     async getQRCode(req, res) {
+        const { clientId } = req.params;
+
         try {
-            const { clientId } = req.params;
             const qrCode = whatsappService.getQRCode(clientId);
             
             if (!qrCode) {
@@ -85,8 +97,8 @@ class WhatsAppController {
     }
 
     async getClientStatus(req, res) {
+        const { clientId } = req.params;
         try {
-            const { clientId } = req.params;
             const status = whatsappService.getClientStatus(clientId);
             
             if (!status) {
@@ -188,8 +200,8 @@ class WhatsAppController {
     }
 
     async destroyClient(req, res) {
+        const { clientId } = req.params;
         try {
-            const { clientId } = req.params;
             await whatsappService.destroyClient(clientId);
             
             res.json({ 
