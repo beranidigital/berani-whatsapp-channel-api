@@ -30,7 +30,7 @@ USER appuser
 COPY --chown=appuser:appgroup package*.json ./
 
 # Install dependencies
-RUN npm ci --production
+RUN npm ci
 
 # Copy source code with correct ownership
 COPY --chown=appuser:appgroup . .
