@@ -1,15 +1,14 @@
-# Use official Puppeteer image
-FROM ghcr.io/puppeteer/puppeteer:latest
+# reference https://developers.google.com/web/tools/puppeteer/troubleshooting#setting_up_chrome_linux_sandbox
+FROM node:current-alpine
 
-# Set working directory
+# manually installing chrome
+RUN apk add chromium
+
+# skips puppeteer installing chrome and points to correct binary
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 WORKDIR /app
-
-# Set XDG environment variables
-ENV XDG_CONFIG_HOME=/tmp/.chromium \
-    XDG_CACHE_HOME=/tmp/.chromium \
-    NODE_ENV=production \
-    PORT=3000
-
 # Copy package files
 COPY package*.json ./
 
@@ -18,9 +17,6 @@ RUN npm ci
 
 # Copy source code
 COPY . .
-
-# Create directories for logs and sessions
-RUN mkdir -p logs .wwebjs_auth
 
 # Expose port
 EXPOSE 3000

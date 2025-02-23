@@ -15,7 +15,7 @@ const config = {
     
     // WhatsApp configuration
     whatsapp: {
-        chromePath: process.env.CHROME_PATH || '/usr/bin/google-chrome',
+        chromePath: process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_PATH || '/usr/bin/google-chrome',
         maxConnections: parseInt(process.env.MAX_CONNECTIONS || '10', 10),
         sessionPath: path.join(__dirname, '../.wwebjs_auth'),
         puppeteerOptions: {
