@@ -169,12 +169,42 @@ class WhatsAppController {
         }
 
         try {
+            // Check if client exists and create if needed
+            let clientStatus = whatsappService.getClientStatus(clientId);
+            if (!clientStatus) {
+                logger.info(`Client ${clientId} not found, attempting to create new client`);
+                await this.createClient({ body: { clientId } }, { json: () => {} });
+                
+                // Wait for client to connect (up to 15 seconds)
+                let attempts = 0;
+                const maxAttempts = 15 / 0.25; // 15 seconds
+                while (attempts < maxAttempts) {
+                    clientStatus = whatsappService.getClientStatus(clientId);
+                    if (clientStatus && clientStatus.status === 'connected') {
+                        break;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 250)); // Wait 1 second
+                    attempts++;
+                }
+                
+                if (!clientStatus || !clientStatus.connected) {
+                    return res.status(408).json({
+                        error: 'Client connection timeout',
+                        code: 'CONNECTION_TIMEOUT',
+                        details: 'Client failed to connect within 15 seconds',
+                        clientId: clientId,
+                        suggestion: 'Try again or check QR code authentication'
+                    });
+                }
+            }
+
+            // Attempt to send message
             await whatsappService.sendMessage(clientId, number, message);
             logger.info(`Message sent successfully from client ${clientId} to ${number}`);
             
-            res.json({ 
-                success: true, 
-                message: 'Message sent successfully' 
+            res.json({
+                success: true,
+                message: 'Message sent successfully'
             });
         } catch (error) {
             logger.error('Failed to send message:', error);
