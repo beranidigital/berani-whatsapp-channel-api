@@ -7,89 +7,113 @@ class WhatsAppService {
     constructor() {
         this.clients = new Map();
         this.qrCodes = new Map();
+        this.initializationLock = new Map();
+
     }
 
+   
+
     async initializeClient(clientId) {
-        if (this.clients.has(clientId)) {
-            throw new Error('Client ID already exists');
+        // Check if initialization is already in progress
+        if (this.initializationLock.get(clientId)) {
+            throw new Error('Client initialization already in progress');
         }
 
-        if (this.clients.size >= config.whatsapp.maxConnections) {
-            throw new Error('Maximum number of connections reached');
-        }
-
-        const client = new Client({
-            authStrategy: new LocalAuth({
-                clientId: clientId,
-                dataPath: config.whatsapp.sessionPath
-            }),
-            puppeteer: {
-                ...config.whatsapp.puppeteerOptions,
-                executablePath: config.whatsapp.chromePath,
-                args: ['--no-sandbox', '--disable-setuid-sandbox'],
-            }
-        });
-
-        // Handle QR Code generation
-        client.on('qr', async (qr) => {
-            logger.info(`New QR Code generated for client ${clientId}`);
-            try {
-                const qrDataURL = await qrcode.toDataURL(qr);
-                this.qrCodes.set(clientId, qrDataURL);
-            } catch (err) {
-                logger.error(`Failed to generate QR code for ${clientId}:`, err);
-            }
-        });
-
-        // Handle client ready state
-        client.on('ready', () => {
-            logger.info(`Client ${clientId} is ready!`);
-            this.clients.set(clientId, {
-                client,
-                status: 'connected'
-            });
-            this.qrCodes.delete(clientId);
-        });
-
-        // Handle incoming messages
-        client.on('message', async (message) => {
-            logger.info(`[${clientId}] Message from ${message.from}: ${message.body}`);
-        });
-
-        // Handle authentication failures
-        client.on('auth_failure', (msg) => {
-            logger.error(`Authentication failed for ${clientId}:`, msg);
-            this.clients.set(clientId, {
-                client,
-                status: 'auth_failed'
-            });
-        });
-
-        // Handle disconnections
-        client.on('disconnected', (reason) => {
-            logger.warn(`Client ${clientId} was disconnected:`, reason);
-            this.clients.set(clientId, {
-                client,
-                status: 'disconnected'
-            });
-        });
+        // Set initialization lock
+        this.initializationLock.set(clientId, true);
 
         try {
-            await client.initialize();
+            // Check if client already exists
+            if (this.clients.has(clientId)) {
+                this.initializationLock.delete(clientId);
+                throw new Error('Client ID already exists');
+            }
+
+            // Check maximum connections
+            if (this.clients.size >= config.whatsapp.maxConnections) {
+                this.initializationLock.delete(clientId);
+                throw new Error('Maximum number of connections reached');
+            }
+
+            const client = new Client({
+                authStrategy: new LocalAuth({
+                    clientId: clientId,
+                    dataPath: config.whatsapp.sessionPath
+                }),
+                puppeteer: {
+                    ...config.whatsapp.puppeteerOptions,
+                    executablePath: config.whatsapp.chromePath,
+                    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+                }
+            });
+
+            // Set initial state before setting up event handlers
             this.clients.set(clientId, {
                 client,
                 status: 'initializing'
             });
-            return client;
-        } catch (err) {
-            logger.error(`Failed to initialize client ${clientId}:`, err);
-            this.clients.set(clientId, {
-                client,
-                status: 'failed'
+
+            // Handle QR Code generation
+            client.on('qr', async (qr) => {
+                logger.info(`New QR Code generated for client ${clientId}`);
+                try {
+                    const qrDataURL = await qrcode.toDataURL(qr);
+                    this.qrCodes.set(clientId, qrDataURL);
+                } catch (err) {
+                    logger.error(`Failed to generate QR code for ${clientId}:`, err);
+                }
             });
-            throw err;
+
+            // Handle client ready state
+            client.on('ready', () => {
+                logger.info(`Client ${clientId} is ready!`);
+                this.clients.set(clientId, {
+                    client,
+                    status: 'connected'
+                });
+                this.qrCodes.delete(clientId);
+            });
+
+            // Handle incoming messages
+            client.on('message', async (message) => {
+                logger.info(`[${clientId}] Message from ${message.from}: ${message.body}`);
+            });
+
+            // Handle authentication failures
+            client.on('auth_failure', (msg) => {
+                logger.error(`Authentication failed for ${clientId}:`, msg);
+                this.clients.set(clientId, {
+                    client,
+                    status: 'auth_failed'
+                });
+            });
+
+            // Handle disconnections
+            client.on('disconnected', (reason) => {
+                logger.warn(`Client ${clientId} was disconnected:`, reason);
+                this.clients.set(clientId, {
+                    client,
+                    status: 'disconnected'
+                });
+            });
+
+            try {
+                await client.initialize();
+                return client;
+            } catch (err) {
+                logger.error(`Failed to initialize client ${clientId}:`, err);
+                this.clients.set(clientId, {
+                    client,
+                    status: 'failed'
+                });
+                throw err;
+            }
+        } finally {
+            // Always remove the initialization lock
+            this.initializationLock.delete(clientId);
         }
     }
+
 
     async sendMessage(clientId, number, message) {
         const clientData = this.clients.get(clientId);
