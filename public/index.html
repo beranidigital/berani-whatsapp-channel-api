@@ -81,7 +81,6 @@
                 <tr>
                     <th>Client ID</th>
                     <th>Status</th>
-                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="clientsTableBody"></tbody>
@@ -254,13 +253,7 @@ async function createClient() {
                     row.innerHTML = `
                         <td>${client.clientId}</td>
                         <td>${client.status}</td>
-                        <td>
-                            ${isInactive ?
-                                `<button onclick="switchToClient('${client.clientId}')">Restore</button>` :
-                                `<button onclick="switchToClient('${client.clientId}')">Select</button>`
-                            }
-                            <button onclick="deleteClient('${client.clientId}')">Delete</button>
-                        </td>
+                        
                     `;
                     if (isInactive) {
                         row.style.opacity = '0.7';
