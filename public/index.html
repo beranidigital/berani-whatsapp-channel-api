@@ -39,6 +39,22 @@
             color: red;
             margin: 10px 0;
         }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f5f5f5;
+        }
+        tr:nth-child(even) {
+            background-color: #fafafa;
+        }
     </style>
 </head>
 <body>
@@ -59,20 +75,34 @@
     </div>
 
     <div class="section">
-        <h2>3. Client Status</h2>
+        <h2>3. All Clients</h2>
+        <table id="clientsTable">
+            <thead>
+                <tr>
+                    <th>Client ID</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="clientsTableBody"></tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>4. Current Client Status</h2>
         <div id="clientStatus">No client connected</div>
         <button onclick="checkStatus()">Check Status</button>
     </div>
 
     <div class="section">
-        <h2>4. Send Message</h2>
+        <h2>5. Send Message</h2>
         <input type="text" id="phoneNumber" placeholder="Phone number (with country code)">
         <input type="text" id="message" placeholder="Message">
         <button onclick="sendMessage()">Send Message</button>
     </div>
 
     <div class="section">
-        <h2>5. Disconnect Client</h2>
+        <h2>6. Disconnect Client</h2>
         <button onclick="disconnectClient()">Disconnect Current Client</button>
     </div>
 
@@ -191,7 +221,87 @@ async function createClient() {
             setTimeout(() => errorDiv.remove(), 5000);
         }
 
-        // Check status periodically
+        async function fetchInactiveClients() {
+            try {
+                const response = await fetch(`${API_BASE}/clients/inactive`);
+                const inactiveClients = await response.json();
+                return inactiveClients.map(clientId => ({
+                    clientId: clientId.substring("session-".length, clientId.length),
+                    status: 'INACTIVE',
+                }));
+            } catch (error) {
+                console.error('Failed to fetch inactive clients:', error);
+                return [];
+            }
+        }
+
+        async function fetchAllClients() {
+            try {
+                const [activeResponse, inactiveClients] = await Promise.all([
+                    fetch(`${API_BASE}/clients`),
+                    fetchInactiveClients()
+                ]);
+                
+                const activeClients = await activeResponse.json();
+                const allClients = [...activeClients, ...inactiveClients];
+                
+                const tbody = document.getElementById('clientsTableBody');
+                tbody.innerHTML = '';
+                
+                allClients.forEach(client => {
+                    const isInactive = client.status === 'INACTIVE';
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${client.clientId}</td>
+                        <td>${client.status}</td>
+                        <td>
+                            ${isInactive ?
+                                `<button onclick="switchToClient('${client.clientId}')">Restore</button>` :
+                                `<button onclick="switchToClient('${client.clientId}')">Select</button>`
+                            }
+                            <button onclick="deleteClient('${client.clientId}')">Delete</button>
+                        </td>
+                    `;
+                    if (isInactive) {
+                        row.style.opacity = '0.7';
+                    }
+                    tbody.appendChild(row);
+                });
+            } catch (error) {
+                showError('Failed to fetch clients: ' + error.message);
+            }
+        }
+
+        async function switchToClient(clientId) {
+            currentClientId = clientId;
+            document.getElementById('clientId').textContent = `Client ID: ${currentClientId}`;
+            await checkStatus();
+            if (document.getElementById('clientStatus').textContent.includes('INITIALIZING')) {
+                startPollingQR();
+            }
+        }
+
+        async function deleteClient(clientId) {
+            try {
+                await fetch(`${API_BASE}/clients/${clientId}`, {
+                    method: 'DELETE'
+                });
+                if (clientId === currentClientId) {
+                    currentClientId = null;
+                    document.getElementById('clientId').textContent = '';
+                    document.getElementById('clientStatus').textContent = 'No client connected';
+                    document.getElementById('qrCode').style.display = 'none';
+                    clearInterval(qrInterval);
+                }
+                await fetchAllClients();
+            } catch (error) {
+                showError('Failed to delete client: ' + error.message);
+            }
+        }
+
+        // Initial fetch and periodic updates
+        fetchAllClients();
+        setInterval(fetchAllClients, 10000);
         setInterval(checkStatus, 10000);
     </script>
 </body>

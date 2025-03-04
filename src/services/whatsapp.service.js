@@ -281,15 +281,39 @@ class WhatsAppService {
     }
 
     getAllClientsStatus() {
-        const status = {};
+        const data = [];
         this.clients.forEach((clientData, id) => {
-            status[id] = this.getClientStatus(id);
+            const status = this.getClientStatus(id);
+            if (status) {
+                data.push({
+                    clientId: id,
+                    ...status
+                });
+            }
         });
-        return status;
+        return data;
     }
 
     getQRCode(clientId) {
         return this.qrCodes.get(clientId);
+    }
+
+    async getInactiveClients() {
+        const fs = require('fs').promises;
+        const path = require('path');
+        
+        try {
+            const sessionPath = config.whatsapp.sessionPath || '.wwebjs_authn';
+            const files = await fs.readdir(sessionPath);
+            const inactiveClients = files
+                .filter(file => !this.clients.has(file))
+                .map(file => file);
+            
+            return inactiveClients;
+        } catch (error) {
+            logger.error('Failed to get inactive clients:', error);
+            return [];
+        }
     }
 }
 

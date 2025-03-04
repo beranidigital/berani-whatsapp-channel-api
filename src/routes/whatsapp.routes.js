@@ -4,6 +4,27 @@ const whatsappController = require('../controllers/whatsapp.controller');
 
 /**
  * @swagger
+ * /clients/inactive:
+ *   get:
+ *     tags: [Clients]
+ *     summary: Get inactive clients
+ *     description: Retrieves a list of inactive WhatsApp clients from the .wwebjs_authn folder
+ *     responses:
+ *       200:
+ *         description: List of inactive client IDs
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: string
+ *       500:
+ *         description: Server error
+ */
+router.get('/clients/inactive', whatsappController.getInactiveClients.bind(whatsappController));
+
+/**
+ * @swagger
  * /clients:
  *   post:
  *     tags: [Clients]

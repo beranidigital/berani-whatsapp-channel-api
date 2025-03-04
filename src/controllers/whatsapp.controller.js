@@ -229,6 +229,21 @@ class WhatsAppController {
         }
     }
 
+    async getInactiveClients(req, res) {
+        try {
+            const inactiveClients = await whatsappService.getInactiveClients();
+            res.json(inactiveClients);
+        } catch (error) {
+            logger.error('Failed to get inactive clients:', error);
+            res.status(500).json({
+                error: 'Failed to retrieve inactive clients',
+                code: 'INACTIVE_CLIENTS_ERROR',
+                details: error.message || 'An unexpected error occurred while retrieving inactive clients',
+                suggestion: 'Check server logs for more information about the underlying issue'
+            });
+        }
+    }
+
     async destroyClient(req, res) {
         const { clientId } = req.params;
         try {
