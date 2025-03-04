@@ -236,12 +236,14 @@ async function createClient() {
 
         async function fetchAllClients() {
             try {
-                const [activeResponse, inactiveClients] = await Promise.all([
+                let [activeResponse, inactiveClients] = await Promise.all([
                     fetch(`${API_BASE}/clients`),
                     fetchInactiveClients()
                 ]);
                 
                 const activeClients = await activeResponse.json();
+                // deduplicate inactive clients based on Active clients
+                inactiveClients = inactiveClients.filter(inactiveClient => !activeClients.some(activeClient => activeClient.clientId === inactiveClient.clientId));
                 const allClients = [...activeClients, ...inactiveClients];
                 
                 const tbody = document.getElementById('clientsTableBody');
