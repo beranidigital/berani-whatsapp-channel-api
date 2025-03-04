@@ -88,13 +88,56 @@ class WhatsAppService {
                 });
             });
 
-            // Handle disconnections
-            client.on('disconnected', (reason) => {
+            // Handle disconnections with automatic reconnection
+            client.on('disconnected', async (reason) => {
                 logger.warn(`Client ${clientId} was disconnected:`, reason);
                 this.clients.set(clientId, {
                     client,
-                    status: 'disconnected'
+                    status: 'disconnected',
+                    lastDisconnect: new Date(),
+                    disconnectReason: reason
                 });
+
+                // Attempt automatic reconnection if it wasn't a deliberate logout
+                if (!reason.includes('logout')) {
+                    logger.info(`Attempting automatic reconnection for client ${clientId}`);
+                    try {
+                        await this.reconnectClient(clientId);
+                    } catch (err) {
+                        logger.error(`Auto-reconnection failed for client ${clientId}:`, err);
+                    }
+                }
+            });
+
+            // Monitor connection state
+            client.on('change_state', async (state) => {
+                logger.info(`Client ${clientId} state changed to: ${state}`);
+                const currentData = this.clients.get(clientId);
+                if (currentData) {
+                    this.clients.set(clientId, {
+                        ...currentData,
+                        lastStateChange: new Date(),
+                        state: state
+                    });
+                }
+            });
+
+            // Enhanced connection monitoring
+            client.on('loading_screen', (percent, message) => {
+                logger.info(`Client ${clientId} loading: ${percent}% - ${message}`);
+            });
+
+            // Handle unexpected errors
+            client.on('error', async (error) => {
+                logger.error(`Client ${clientId} encountered error:`, error);
+                const currentData = this.clients.get(clientId);
+                if (currentData) {
+                    this.clients.set(clientId, {
+                        ...currentData,
+                        lastError: new Date(),
+                        lastErrorMessage: error.message
+                    });
+                }
             });
 
             try {
@@ -115,14 +158,80 @@ class WhatsAppService {
     }
 
 
-    async sendMessage(clientId, number, message) {
+    async sendMessage(clientId, number, message, retries = 3) {
         const clientData = this.clients.get(clientId);
-        if (!clientData || clientData.status !== 'connected') {
-            throw new Error('Client not found or not connected');
+        if (!clientData) {
+            throw new Error('Client not found');
+        }
+
+        // Check if client needs reconnection
+        if (clientData.status === 'disconnected' || clientData.status === 'failed') {
+            logger.info(`Attempting to reconnect client ${clientId}`);
+            try {
+                await this.reconnectClient(clientId);
+            } catch (err) {
+                logger.error(`Failed to reconnect client ${clientId}:`, err);
+                throw new Error('Failed to reconnect client');
+            }
+        }
+
+        if (clientData.status !== 'connected') {
+            throw new Error(`Client is not connected (status: ${clientData.status})`);
         }
 
         const formattedNumber = number.includes('@c.us') ? number : `${number}@c.us`;
-        await clientData.client.sendMessage(formattedNumber, message);
+        
+        try {
+            await clientData.client.sendMessage(formattedNumber, message);
+        } catch (err) {
+            if (err.message.includes('Protocol error') || err.message.includes('Session closed')) {
+                logger.warn(`Session closed for client ${clientId}, attempting recovery...`);
+                
+                if (retries > 0) {
+                    logger.info(`Retrying message send (${retries} attempts remaining)`);
+                    try {
+                        await this.reconnectClient(clientId);
+                        return this.sendMessage(clientId, number, message, retries - 1);
+                    } catch (reconnectErr) {
+                        logger.error(`Failed to recover session for ${clientId}:`, reconnectErr);
+                        throw new Error('Failed to recover session');
+                    }
+                }
+            }
+            throw err;
+        }
+    }
+
+    async reconnectClient(clientId) {
+        const clientData = this.clients.get(clientId);
+        if (!clientData) {
+            throw new Error('Client not found');
+        }
+
+        try {
+            // Destroy existing client instance
+            await clientData.client.destroy();
+        } catch (err) {
+            logger.warn(`Error destroying client ${clientId}:`, err);
+        }
+
+        // Initialize new client instance
+        await this.initializeClient(clientId);
+        
+        // Wait for client to be ready
+        const maxWaitTime = 30000; // 30 seconds
+        const startTime = Date.now();
+        
+        while (Date.now() - startTime < maxWaitTime) {
+            const status = this.getClientStatus(clientId);
+            if (status && status.status === 'connected') {
+                logger.info(`Client ${clientId} reconnected successfully`);
+                return;
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        throw new Error('Reconnection timeout');
     }
 
     async destroyClient(clientId) {
@@ -148,10 +257,27 @@ class WhatsAppService {
             return null;
         }
 
-        return {
+        const status = {
             status: clientData.status,
-            needsQR: this.qrCodes.has(clientId)
+            needsQR: this.qrCodes.has(clientId),
+            state: clientData.state || 'unknown',
+            lastStateChange: clientData.lastStateChange || null,
+            lastError: clientData.lastError || null,
+            lastErrorMessage: clientData.lastErrorMessage || null,
+            lastDisconnect: clientData.lastDisconnect || null,
+            disconnectReason: clientData.disconnectReason || null
         };
+
+        // Add client info if available
+        if (clientData.client?.info) {
+            status.info = {
+                platform: clientData.client.info.platform,
+                pushname: clientData.client.info.pushname,
+                connected: clientData.client.info.connected
+            };
+        }
+
+        return status;
     }
 
     getAllClientsStatus() {
